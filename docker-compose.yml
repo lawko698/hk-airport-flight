@@ -1,0 +1,120 @@
+services:
+  ### Prefect Database
+  database:
+    image: postgres:15.2-alpine
+    restart: always
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=prefect
+    expose:
+      - 5432
+    volumes: 
+      - db:/var/lib/postgresql/data
+    profiles: ["server"]
+  
+  ### MinIO for flow storage
+  minio:
+    image: minio/minio:latest
+    entrypoint: ["minio", "server", "--address", "0.0.0.0:9000", "--console-address", "0.0.0.0:9001", "/data"]
+    volumes:
+      - "minio:/data"
+    ports:
+      - 9000:9000
+      - 9001:9001
+    profiles: ["minio"]
+
+  ### Prefect Server API and UI
+  server:
+    build:
+      context: ./
+      dockerfile: ./containers/prefect-server/Dockerfile
+    restart: always
+    volumes:
+      - prefect:/root/.prefect
+      - "./flows:/opt/prefect/flows"
+      - "./migrations:/opt/prefect//migrations"
+    entrypoint: ["/opt/prefect/entrypoint.sh", "prefect", "server", "start"]
+    environment:
+      PREFECT_UI_URL: http://127.0.0.1:4200/api
+      PREFECT_API_URL: http://127.0.0.1:4200/api
+      # If you want to access Prefect Server UI from anywhere other than the Docker host machine, you will need to change
+      # PREFECT_UI_URL and PREFECT_API_URL to match the external hostname/IP of the host machine. For example:
+      #- PREFECT_UI_URL=http://external-ip:4200/api
+      #- PREFECT_API_URL=http://external-ip:4200/api
+      PREFECT_SERVER_API_HOST: 0.0.0.0
+      PREFECT_API_DATABASE_CONNECTION_URL: postgresql+asyncpg://postgres:postgres@database:5432/prefect
+      # Uncomment the following line if you want to use the 'S3 Bucket' storage block instead of the older 'S3' storage
+      # - EXTRA_PIP_PACKAGES=prefect-aws
+      WAREHOUSE_USER: ${POSTGRES_USER}
+      WAREHOUSE_PASSWORD: ${POSTGRES_PASSWORD}
+      WAREHOUSE_DB: ${POSTGRES_DB}
+      WAREHOUSE_HOST: ${POSTGRES_HOST}
+      WAREHOUSE_PORT: ${POSTGRES_PORT}
+    ports:
+      - 4200:4200
+    depends_on:
+      - database
+    profiles: ["server"]
+
+  ## Prefect Agent
+  agent:
+    build:
+      context: ./containers/prefect/
+    restart: always
+    entrypoint: ["/opt/prefect/entrypoint.sh", "prefect", "agent", "start", "-q", "hongkong_flights"]
+    environment:
+      - PREFECT_API_URL=http://server:4200/api
+#       Use PREFECT_API_KEY if connecting the agent to Prefect Cloud
+#     - PREFECT_API_KEY=YOUR_API_KEY
+    profiles: ["agent"]
+
+  ### Prefect CLI
+  cli:
+    build:
+      context: ./containers/prefect/
+    entrypoint: "bash"
+    working_dir: "/root/flows"
+    volumes:
+      - "./flows:/root/flows"
+      - "./migrations:/root/migrations"
+    environment:
+      PREFECT_API_URL: http://server:4200/api
+#       Use PREFECT_API_KEY to use the CLI to interact with Prefect Cloud
+#     - PREFECT_API_KEY=YOUR_API_KEY
+    profiles: ["cli"]
+  
+  warehouse:
+    image: postgres:15.2-alpine
+    container_name: warehouse
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    healthcheck:
+        test:
+          [
+            "CMD",
+            "pg_isready",
+            "-d",
+            "${POSTGRES_DB}",
+            "-U",
+            "${POSTGRES_USER}"
+          ]
+        interval: 5s
+        retries: 5
+    restart: always
+    ports:
+      - "5433:5432"
+    volumes: 
+      - db-warehouse:/var/lib/postgresql/data
+    profiles: ["warehouse"]
+ 
+volumes:
+  prefect:
+  db:
+  minio:
+  db-warehouse:
+networks:
+  default:
+    name: prefect-network
