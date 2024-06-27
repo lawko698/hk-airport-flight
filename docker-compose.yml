@@ -33,7 +33,8 @@ services:
     volumes:
       - prefect:/root/.prefect
       - "./flows:/opt/prefect/flows"
-      - "./migrations:/opt/prefect//migrations"
+      - "./migrations:/opt/prefect/migrations"
+      - "./tests:/opt/prefect/tests"
     entrypoint: ["/opt/prefect/entrypoint.sh", "prefect", "server", "start"]
     environment:
       PREFECT_UI_URL: http://127.0.0.1:4200/api
@@ -60,9 +61,11 @@ services:
   ## Prefect Agent
   agent:
     build:
-      context: ./containers/prefect/
+      context: ./
+      dockerfile: ./containers/prefect/Dockerfile
+      # context: ./containers/prefect/
     restart: always
-    entrypoint: ["/opt/prefect/entrypoint.sh", "prefect", "agent", "start", "-q", "hongkong_flights"]
+    entrypoint: ["/opt/prefect/entrypoint.sh", "prefect", "agent", "start", "-q", "hk-airport-flights"]
     environment:
       - PREFECT_API_URL=http://server:4200/api
 #       Use PREFECT_API_KEY if connecting the agent to Prefect Cloud
@@ -72,7 +75,9 @@ services:
   ### Prefect CLI
   cli:
     build:
-      context: ./containers/prefect/
+      context: ./
+      dockerfile: ./containers/prefect/Dockerfile
+      # context: ./containers/prefect/
     entrypoint: "bash"
     working_dir: "/root/flows"
     volumes:

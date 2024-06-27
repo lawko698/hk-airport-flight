@@ -72,6 +72,6 @@ make down # Stop docker containers on your computer
 ```
 
 ## Room for improvements
-- Auto formatting, lint checks, & tests
+- Auto formatting, lint checks, & tests [Added]
 - Terraform & startup scripts
 - Setup CICD

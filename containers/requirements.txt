@@ -1,3 +1,4 @@
+numpy==1.26.4
 pandas==1.5.2
 prefect==2.12.1
 prefect-sqlalchemy==0.2.2
@@ -9,3 +10,9 @@ psycopg2-binary==2.9.5
 pydantic==1.10.11
 sqlalchemy==1.4.46
 yoyo-migrations==8.2.0
+black
+flake8
+pytest
+types-requests
+isort
+mypy

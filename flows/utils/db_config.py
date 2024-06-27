@@ -2,6 +2,7 @@ import os
 
 from .postgres_db import DBConnection
 
+
 def get_warehouse_creds() -> DBConnection:
     return DBConnection(
         user=os.getenv('WAREHOUSE_USER', ''),
