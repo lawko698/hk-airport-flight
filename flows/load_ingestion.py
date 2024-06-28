@@ -2,36 +2,33 @@
 # coding: utf-8
 
 import argparse
-from datetime import datetime
 
 from utils.helper_function import (
     get_flights_data,
     load_from_datalake,
     save_to_datalake,
     transformation,
+    validate_datetime_format,
     write_to_warehouse,
 )
 
 from prefect import flow
 
 
-@flow(name="Incremental Load Ingestion")
+@flow(name="Load Ingestion")
 def main_flow():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         '--date',
-        nargs='?',
-        help='Date used for ETL flight data. Format(YYYY_MM_dd)',
+        required=True,
+        help='Date used for ETL flight data. Format(YYYY-MM-dd)',
     )
     args = parser.parse_args()
-
-    if not args.date:
-        date = datetime.today().strftime('%Y_%m_%d')
-    else:
-        date = args.date
+    date = args.date
+    validate_datetime_format(date)
 
     gcs_bucket_block = "gcp-hongkong-flight-information"
-    file_path = f"raw_hong_kong_flight_information_{date}.json"
+    file_path = f"data/raw_hong_kong_flight_information_{date}.json"
 
     data = get_flights_data(date)
     save_to_datalake(data, file_path, gcs_bucket_block)
@@ -42,4 +39,4 @@ def main_flow():
 
 
 if __name__ == '__main__':
-    main_flow.serve(name="Incremental Load", cron="0 6 * * *")  # type: ignore
+    main_flow()

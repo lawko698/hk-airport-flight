@@ -3,6 +3,7 @@
 
 import json
 import logging
+import os
 from datetime import datetime, timedelta
 
 import pandas as pd
@@ -13,12 +14,18 @@ from prefect_gcp.cloud_storage import GcsBucket
 
 from flows.utils.db_config import get_warehouse_creds
 from flows.utils.postgres_db import WarehouseConnection
-from prefect import task
+from prefect import get_run_logger, task
+
+logging.basicConfig(level=logging.INFO)
+
+os.environ.update(
+    PREFECT_LOGGING_EXTRA_LOGGERS="root", PREFECT_LOGGING_ROOT_LEVEL="INFO"
+)
 
 
 @task(log_prints=True)
 def get_flights_data(date: str) -> list:
-    date_format = date.replace("_", "-")
+    logging = get_run_logger()
     is_arrival = 'true'
     is_cargo = 'true'
     json_list = []
@@ -31,7 +38,7 @@ def get_flights_data(date: str) -> list:
         is_arrival, is_cargo = query_parameters
         url = (
             f"https://www.hongkongairport.com/flightinfo-rest/rest/flights/"
-            f"past?date={date_format}&arrival={is_arrival}&cargo={is_cargo}"
+            f"past?date={date}&arrival={is_arrival}&cargo={is_cargo}"
         )
         try:
             r = requests.get(url)
@@ -43,9 +50,12 @@ def get_flights_data(date: str) -> list:
 
 @task(log_prints=True)
 def save_to_datalake(data, file_path: str, gcs_bucket_block: str) -> None:
+    logging = get_run_logger()
     if "problemNo" in data:
-        raise TypeError("json data not extracted properly")
-
+        logging.info("Data is not saved to the datalake due to Json TypeError")
+        raise TypeError(
+            "Json data not extracted properly. Check Requested Data"
+        )
     json_data = json.dumps(data)
     gcs_block = GcsBucket.load(gcs_bucket_block)
     gcs_block.write_path(file_path, json_data)
@@ -68,6 +78,13 @@ def get_full_load_dates() -> list:
         (start_date + timedelta(days=x)).strftime("%Y-%m-%d")
         for x in range((end_date - start_date).days + 1)
     ]
+
+
+def validate_datetime_format(date: str):
+    try:
+        datetime.fromisoformat(date)
+    except ValueError:
+        raise ValueError("Incorrect data format, should be YYYY-MM-DD")
 
 
 def get_extracted_status_time(row):
@@ -283,18 +300,17 @@ def _get_flight_insert_query() -> str:
 
 @task(log_prints=True)
 def write_to_warehouse(data, date) -> None:
-    date_format = date.replace("_", "-")
+    logging = get_run_logger()
     with WarehouseConnection(get_warehouse_creds()).managed_cursor() as curr:
         curr.execute(
-            (
-                f"SELECT COUNT(*) FROM "
-                f"airport.flight WHERE date ='{date_format}';"
-            )
+            (f"SELECT COUNT(*) FROM " f"airport.flight WHERE date ='{date}';")
         )
-        count_rows = curr.fetchall()
-        print("num of rows", count_rows)
+        count_rows = curr.fetchone()[0]
+        logging.info(f"num of rows - {count_rows}")
         if count_rows == 0:
             p.execute_batch(curr, _get_flight_insert_query(), data)
             logging.info("Data inserted into the database")
         else:
-            logging.info("Data already exists in the database")
+            logging.info(
+                "Data not inserted as it already exists in the database"
+            )
