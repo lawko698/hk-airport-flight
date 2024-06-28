@@ -203,7 +203,11 @@ def transformation(data) -> DataFrame:
         df['extract_status_timestamp'] - df['timestamp']
     )
     df['is_plane_delayed'] = df.apply(lambda x: is_plane_delayed(x), axis=1)
-    df['shared_flight_id'] = df['date'] + df['index'].astype(str)
+
+    df['id'] = (df['date'].apply(lambda x: x.replace('-',''))  
+                + df['index'].astype(str)) #concatenation of the date and index
+    df['id'] = df['id'].astype(int)
+
     df['number_origin_countries'] = df['origin'].apply(lambda x: len(x))
     df['number_destination_countries'] = df['destination'].apply(
         lambda x: len(x)
@@ -229,13 +233,13 @@ def transformation(data) -> DataFrame:
 
     # Generate json
     data = json.loads(df.to_json(orient='records'))
-
     return data
 
 
 def _get_flight_insert_query() -> str:
     return '''
     INSERT INTO airport.flight (
+        id,
         date,
         time,
         datetime,
@@ -261,11 +265,11 @@ def _get_flight_insert_query() -> str:
         is_multiple_destination,
         is_multiple_origin,
         is_plane_delayed,
-        shared_flight_id,
         number_origin_countries,
         number_destination_countries
     )
     VALUES (
+        %(id)s,
         %(date)s,
         %(time)s,
         %(datetime)s,
@@ -291,26 +295,44 @@ def _get_flight_insert_query() -> str:
         %(is_multiple_destination)s,
         %(is_multiple_origin)s,
         %(is_plane_delayed)s,
-        %(shared_flight_id)s,
         %(number_origin_countries)s,
         %(number_destination_countries)s
-    );
+    )
+    ON CONFLICT (id) DO UPDATE
+    SET id = excluded.id,
+        date = excluded.date,
+        time = excluded.time,
+        datetime = excluded.datetime,
+        timestamp = excluded.timestamp,
+        extract_status_datetime = excluded.extract_status_datetime,
+        extract_status_timestamp = excluded.extract_status_timestamp,
+        status_timestamp_difference = excluded.status_timestamp_difference,
+        status = excluded.status,
+        statusCode = excluded.statusCode,
+        origin = excluded.origin,
+        baggage = excluded.baggage,
+        hall = excluded.hall,
+        terminal = excluded.terminal,
+        stand = excluded.stand,
+        destination = excluded.destination,
+        aisle = excluded.aisle,
+        gate = excluded.gate,
+        is_arrival = excluded.is_arrival,
+        is_cargo = excluded.is_cargo,
+        is_shared_flight = excluded.is_shared_flight,
+        flight_number = excluded.flight_number,
+        airline = excluded.airline,
+        is_multiple_destination = excluded.is_multiple_destination,
+        is_multiple_origin = excluded.is_multiple_origin,
+        is_plane_delayed = excluded.is_plane_delayed,
+        number_origin_countries = excluded.number_origin_countries,
+        number_destination_countries = excluded.number_destination_countries;
     '''
 
 
 @task(log_prints=True)
 def write_to_warehouse(data, date) -> None:
-    logging = get_run_logger()
     with WarehouseConnection(get_warehouse_creds()).managed_cursor() as curr:
-        curr.execute(
-            (f"SELECT COUNT(*) FROM " f"airport.flight WHERE date ='{date}';")
-        )
-        count_rows = curr.fetchone()[0]
-        logging.info(f"num of rows - {count_rows}")
-        if count_rows == 0:
-            p.execute_batch(curr, _get_flight_insert_query(), data)
-            logging.info("Data inserted into the database")
-        else:
-            logging.info(
-                "Data not inserted as it already exists in the database"
-            )
+        logging.info("Write data to database warehouse")
+        p.execute_batch(curr, _get_flight_insert_query(), data)
+        logging.info("Data inserted into the database")

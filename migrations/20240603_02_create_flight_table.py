@@ -11,7 +11,7 @@ steps = [
         """
         CREATE TABLE airport.flight
         (
-            id SERIAL,
+            id BIGINT,
             date VARCHAR(50),
             time VARCHAR(50),
             datetime TIMESTAMP,
@@ -37,9 +37,9 @@ steps = [
             is_multiple_destination BOOLEAN,
             is_multiple_origin BOOLEAN,
             is_plane_delayed BOOLEAN,
-            shared_flight_id VARCHAR(100),
             number_origin_countries VARCHAR(100),
-            number_destination_countries VARCHAR(100)
+            number_destination_countries VARCHAR(100),
+            PRIMARY KEY (id)
         )
         """,
         "DROP TABLE airport.flight",
