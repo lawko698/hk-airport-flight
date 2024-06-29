@@ -32,10 +32,14 @@ Tech Stack:
 ## Infrastruture:
 This project is hosted in Google Cloud and uses the following resources:
 
+- **Compute Instance**
+
 ![Ifra](assets/images/gc-compute-instance.JPG)
 - Firewall rules for Looker Studio [link](https://support.google.com/looker-studio/answer/13139222?sjid=5831544522428849886-AP#jul-14-2022)
     - 142.251.74.0/23
     - 2001:4860:4807::/48 (Optional, for platforms that support IPv6)
+
+- **GCP Cloud Storage**
 
 ### Pre-requisites
 
@@ -43,13 +47,15 @@ This project is hosted in Google Cloud and uses the following resources:
 2. Github account
 3. Docker
 
-Fill in Google Service Account credentials in the file: hk-airport-flights/blocks/make_gcp_blocks.py
+Fill in Google Service Account credentials and GCP Cloud Storage Bucket name in the file: hk-airport-flights/blocks/make_gcp_blocks.py
 
 ```shell
-git clone https://github.com/lawko698/hk-airport-flights.git
-cd hk-airport-flights
+git clone https://github.com/lawko698/hk-airport-flight.git
+cd hk-airport-flight
 
-make up # start the docker containers on your computer & runs migrations under ./migrations
+make spinup # start the docker containers on your computer & runs migrations under ./migrations
+
+sh startup.sh # initialize the project
 ```
 
 ## Dashboard
@@ -71,7 +77,7 @@ After you are done, make sure to destroy your cloud infrastructure.
 make down # Stop docker containers on your computer
 ```
 
-## Room for improvements
-- Auto formatting, lint checks, & tests [Added]
+## Future Improvements
+- Auto formatting, lint checks, & unit tests **[Added]**
 - Terraform & startup scripts
-- Setup CICD
+- Setup CI
